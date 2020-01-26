@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'An Alexa skill for Tesla API'
+
+
+###
+### Template input parameters
+###
+
+Parameters:
+  pSkillId:
+    Type: String
+    Description: ID of the Alexa Skill we will hook with
+
+###
+### Template Resources
+###
+
+Resources:
+
+  # Role for the Alexa Lambda Function
+  rLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-LambdaRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-LambdaPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudWatchLogsPermissions
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:*:${AWS::AccountId}:*'
+              - Sid: CloudWatchPermissions
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource: "*"
+              - Sid: SSMAccess
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:*:*:parameter/${AWS::StackName}-*'
+              - Sid: DynamoDB
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:*:*:table:${AWS::StackName}-users'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  
+  # The Alexa Lambda function
+  rAlexaLambdaFunction:
+    Type: 'AWS::Serverless::Function'
+    DependsOn: rLambdaRole
+    Properties:
+      Role: !GetAtt 'rLambdaRole.Arn'
+      FunctionName: !Sub '${AWS::StackName}-AlexaLambdaFunction'
+      Runtime: python3.7
+      Timeout: 60
+      Handler: lambda_function.lambda_handler
+      CodeUri: ./alexa
+      EventSource:
+        Type: AlexaSkill
+        Properties: 
+          SkillId: !Ref pSkillId
+
+  # Users table
+  rUsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "userId"
+          AttributeType: "S"
+        - 
+          AttributeName: "activationCode"
+          AttributeType: "S"
+        - 
+          AttributeName: "accessToken"
+          AttributeType: "S"
+        - 
+          AttributeName: "refreshToken"
+          AttributeType: "S"
+        - 
+          AttributeName: "status"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: userId
+          KeyType: HASH
+        - 
+          AttributeName: activationCode
+          KeyType: HASH
+      SSESpecification: 
+        - KMSMasterKeyId: !GetAtt rKMSKey.arn
+          SSEEnabled: true
+          SSEType: KMS
+      TableName: !Sub '${AWS::StackName}-users'
+
+  # KMS key to encrypt the data in the users table
+  rKMSKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: !Sub 'Key is used to encrypt ${AWS::StackName}-users'
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow # Administrator
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root' #yuk
+          Action: 'kms:*'
+          Resource: '*'
+        - Effect: Allow # Lambda function access through DynamoDB
+          Principal:
+            AWS: !GetAtt rLambdaRole.arn
+          Action:
+          - 'kms:Encrypt'
+          - 'kms:Decrypt'
+          - 'kms:ReEncrypt*'
+          - 'kms:GenerateDataKey*'
+          - 'kms:CreateGrant'
+          - 'kms:ListGrants'
+          - 'kms:DescribeKey'
+          Resource: '*'
+          Condition:
+            StringLike:
+              'kms:ViaService' : 'dynamodb.*.amazonaws.com'
+  
+  # API Gateway used for signup
+  rAPIgw:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: "'*'"
+
+  # This literally just shows the form that it'll then POST back
+  rGetSetupLambda: 
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./getSetup
+      Handler: lambda_function.lambda_handler
+      MemorySize: 1024
+      Runtime: python3.7
+      Events:
+        getSetup:
+          Type: Api
+          Properties:
+            RestApiId: !Ref rAPIgw
+            Path: /
+            Method: GET
+  
+  # This attaches uses the activation code to marry up to an alexa user, but then uses the un/pw pair to create an access token
+  rPostSetupLambda: 
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./postSetup
+      Handler: lambda_function.lambda_handler
+      MemorySize: 1024
+      Runtime: python3.7
+      Environment:
+        Variables:
+          usersTable: !Ref rUsersTable
+      Events:
+        getAccount:
+          Type: Api
+          Properties:
+            RestApiId: !Ref rAPIgw
+            Path: /
+            Method: POST
+      Policies:
+        - Version: '2012-10-17' # Policy Document
+          Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:GetItem
+            Resource: !GetAtt rUsersTable.Arn
+
+Outputs:
+  ApiUrl:
+    Description: "API endpoint URL for Prod environment"
+    Value: !Sub 'https://${rAPIgw}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+  AlexaLambdaARN:
+    Description: "The lambda your alexa skill should be pointed at"
+    Value: !Ref rAlexaLambdaFunction
