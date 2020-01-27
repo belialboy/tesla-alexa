@@ -5,6 +5,9 @@ import random
 import logging
 import json
 import prompts
+import random
+import string
+import os
 
 from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.dispatch_components import (
@@ -36,14 +39,47 @@ class StartSessionHandler(AbstractRequestHandler):
         # get localization data
         data = handler_input.attributes_manager.request_attributes["_"]
 
+        # get ddb connection and table
+        ddb=boto3.resource('dynamodb')
+        # pylint: disable=no-member
+        usersTable=ddb.Table(os.environ['usersTable'])
+
         # Does this alexa user have an account? (Yes, carry on. No, Give them a sign up prompt)
+        logger.info("Getting user from table")
+        user=usersTable.get_item(Key={
+            'userId': handler_input.context.System.user
+            })
 
-        random_fact = random.choice(data[prompts.FACTS])
-        speech = data[prompts.GET_FACT_MESSAGE].format(random_fact)
+        if user is None:
+            logger.info("User doesn't exist. Building activation code")
+            letters = string.ascii_uppercase
+            activationCode = ''.join(random.choice(letters) for i in range(4))
 
+            logger.info("Writing activation code to table")
+            usersTable.put_item(
+                Item={
+                    "userId": handler_input.context.System.user,
+                    "activationCode": activationCode,
+                    "status": "setup"
+                })
+            speech = "Please complete the signup using activation code {CODE}".format(CODE=" ".join(activationCode))
+            handler_input.response_builder.speak(speech).set_card(
+                SimpleCard(data[prompts.SKILL_NAME], speech))
+            return handler_input.response_builder.response
+        elif user.status=="setup":
+            logger.info("Activation code already exists. Repeating.")
+            speech = "Please complete the signup using activation code {CODE}".format(CODE=" ".join(user['activationCode']))
+            handler_input.response_builder.speak(speech).set_card(
+                SimpleCard(data[prompts.SKILL_NAME], speech))
+            return handler_input.response_builder.response
+        
+        logger.info("Opening session.")
+        speech = "What would you like me to do?"
+        handler_input.response_builder.set_should_end_session(False)
         handler_input.response_builder.speak(speech).set_card(
-            SimpleCard(data[prompts.SKILL_NAME], random_fact))
+                SimpleCard(data[prompts.SKILL_NAME], speech))
         return handler_input.response_builder.response
+
 
 class HelpIntentHandler(AbstractRequestHandler):
     """Handler for Help Intent."""

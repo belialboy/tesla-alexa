@@ -2,10 +2,16 @@ import json
 import boto3
 import requests
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def lambda_handler(event, context):
+    logger.info("In lamda_handler")
     # This function gets called when an activation is being requested
     ddb=boto3.resource('dynamodb')
+    # pylint: disable=no-member
     usersTable=ddb.Table(os.environ['usersTable'])
 
     # Look up the activation code to ensure it's valid

@@ -138,6 +138,11 @@ Resources:
         Type: AlexaSkill
         Properties: 
           SkillId: !Ref pSkillId
+      Layers:
+        - !FindInMap [LambdaRequestsLib, !Ref "AWS::Region", requests]
+      Environment:
+        Variables:
+          usersTable: !Ref rUsersTable
 
   # Users table
   rUsersTable:
