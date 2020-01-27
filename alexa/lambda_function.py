@@ -21,20 +21,22 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Built-in Intent Handlers
-class GetNewFactHandler(AbstractRequestHandler):
-    """Handler for Skill Launch and GetNewFact Intent."""
+class StartSessionHandler(AbstractRequestHandler):
+    """Handler for Skill Launch."""
 
     def can_handle(self, handler_input):
         # type: (HandlerInput) -> bool
         return (is_request_type("LaunchRequest")(handler_input) or
-                is_intent_name("GetNewFactIntent")(handler_input))
+                is_intent_name("StartSessionIntent")(handler_input))
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        logger.info("In GetNewFactHandler")
+        logger.info("In StartSessionHandler")
 
         # get localization data
         data = handler_input.attributes_manager.request_attributes["_"]
+
+        # Does this alexa user have an account? (Yes, carry on. No, Give them a sign up prompt)
 
         random_fact = random.choice(data[prompts.FACTS])
         speech = data[prompts.GET_FACT_MESSAGE].format(random_fact)
@@ -188,7 +190,7 @@ class ResponseLogger(AbstractResponseInterceptor):
 
 
 # Register intent handlers
-sb.add_request_handler(GetNewFactHandler())
+sb.add_request_handler(StartSessionHandler())
 sb.add_request_handler(HelpIntentHandler())
 sb.add_request_handler(CancelOrStopIntentHandler())
 sb.add_request_handler(FallbackIntentHandler())

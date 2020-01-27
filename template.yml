@@ -11,6 +11,65 @@ Parameters:
   pSkillId:
     Type: String
     Description: ID of the Alexa Skill we will hook with
+  pTeslaAPIClientId:
+    Type: String
+    Description: The Tesla API Client ID (https://pastebin.com/pS7Z6yyP)
+    Default: "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384"
+  pTeslaAPIClientSecret:
+    Type: String
+    Description: The Tesla API Client Secret (https://pastebin.com/pS7Z6yyP)
+    Default: "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3"
+
+###
+### Template Mappings
+###
+
+Mappings:
+  LambdaRequestsLib:
+    ap-northeast-1:
+      "requests": "arn:aws:lambda:ap-northeast-1:249908578461:layer:AWSLambda-Python-AWS-SDK:4"
+    us-east-1:
+      "requests": "arn:aws:lambda:us-east-1:668099181075:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-southeast-1:
+      "requests": "arn:aws:lambda:ap-southeast-1:468957933125:layer:AWSLambda-Python-AWS-SDK:4"
+    eu-west-1:
+      "requests": "arn:aws:lambda:eu-west-1:399891621064:layer:AWSLambda-Python-AWS-SDK:4"
+    us-west-1:
+      "requests": "arn:aws:lambda:us-west-1:325793726646:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-east-1:
+      "requests": "arn:aws:lambda:ap-east-1:118857876118:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-northeast-2:
+      "requests": "arn:aws:lambda:ap-northeast-2:296580773974:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-northeast-3:
+      "requests": "arn:aws:lambda:ap-northeast-3:961244031340:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-south-1:
+      "requests": "arn:aws:lambda:ap-south-1:631267018583:layer:AWSLambda-Python-AWS-SDK:4"
+    ap-southeast-2:
+      "requests": "arn:aws:lambda:ap-southeast-2:817496625479:layer:AWSLambda-Python-AWS-SDK:4"
+    ca-central-1:
+      "requests": "arn:aws:lambda:ca-central-1:778625758767:layer:AWSLambda-Python-AWS-SDK:4"
+    eu-central-1:
+      "requests": "arn:aws:lambda:eu-central-1:292169987271:layer:AWSLambda-Python-AWS-SDK:4"
+    eu-north-1:
+      "requests": "arn:aws:lambda:eu-north-1:642425348156:layer:AWSLambda-Python-AWS-SDK:4"
+    eu-west-2:
+      "requests": "arn:aws:lambda:eu-west-2:142628438157:layer:AWSLambda-Python-AWS-SDK:4"
+    eu-west-3:
+      "requests": "arn:aws:lambda:eu-west-3:959311844005:layer:AWSLambda-Python-AWS-SDK:4"
+    sa-east-1:
+      "requests": "arn:aws:lambda:sa-east-1:640010853179:layer:AWSLambda-Python-AWS-SDK:4"
+    us-east-2:
+      "requests": "arn:aws:lambda:us-east-2:259788987135:layer:AWSLambda-Python-AWS-SDK:4"
+    us-west-2:
+      "requests": "arn:aws:lambda:us-west-2:420165488524:layer:AWSLambda-Python-AWS-SDK:5"
+    cn-north-1:
+      "requests": "arn:aws-cn:lambda:cn-north-1:683298794825:layer:AWSLambda-Python-AWS-SDK:4"
+    cn-northwest-1:
+      "requests": "arn:aws-cn:lambda:cn-northwest-1:382066503313:layer:AWSLambda-Python-AWS-SDK:4"
+    us-gov-west:
+      "requests": "arn:aws-us-gov:lambda:us-gov-west-1:556739011827:layer:AWSLambda-Python-AWS-SDK:4"
+    us-gov-east:
+      "requests": "arn:aws-us-gov:lambda:us-gov-east-1:138526772879:layer:AWSLambda-Python-AWS-SDK:4"
 
 ###
 ### Template Resources
@@ -61,6 +120,8 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+      Layers:
+        - !FindInMap [LambdaRequestsLib, !Ref "AWS::Region", requests]
   
   # The Alexa Lambda function
   rAlexaLambdaFunction:
@@ -98,6 +159,9 @@ Resources:
         - 
           AttributeName: "status"
           AttributeType: "S"
+        -
+          AttributeName: "expires"
+          AttributeType: "N"
       KeySchema: 
         - 
           AttributeName: userId
@@ -176,6 +240,8 @@ Resources:
       Environment:
         Variables:
           usersTable: !Ref rUsersTable
+          teslaAPIClientId: !Ref pTeslaAPIClientId
+          teslaAPIClientSecret: !Ref pTeslaAPIClientSecret
       Events:
         getAccount:
           Type: Api
