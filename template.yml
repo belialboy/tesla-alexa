@@ -134,10 +134,11 @@ Resources:
       Timeout: 60
       Handler: lambda_function.lambda_handler
       CodeUri: ./alexa
-      EventSource:
-        Type: AlexaSkill
-        Properties: 
-          SkillId: !Ref pSkillId
+      Events: 
+        AlexaSkill:
+          Type: AlexaSkill
+          Properties:
+            skillId: !Ref pSkillId
       Layers:
         - !FindInMap [LambdaRequestsLib, !Ref "AWS::Region", requests]
       Environment:

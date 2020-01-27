@@ -1,2 +1,1 @@
-ask-sdk
-logging
+ask-sdk==1.13.0
